@@ -7,10 +7,12 @@ import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
+import SearchResult._
+
 // This represent the main API of Lambda Corp.
 // `search` is called whenever a user press the "Search" button on the website.
 trait SearchFlightService {
-  def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult]
+  def search(from: Airport, to: Airport, date: LocalDate)(implicit ec: ExecutionContext): IO[SearchResult]
 }
 
 object SearchFlightService {
@@ -25,9 +27,16 @@ object SearchFlightService {
   //       You can also defined tests for `SearchResult` in `SearchResultTest`
   def fromTwoClients(client1: SearchFlightClient, client2: SearchFlightClient): SearchFlightService =
     new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+      def search(from: Airport, to: Airport, date: LocalDate)(implicit ec: ExecutionContext): IO[SearchResult] = {
+        def searchByClient(client: SearchFlightClient): IO[List[Flight]] =
+          client
+            .search(from, to, date)
+            .handleErrorWith(_ => IO.debug("client errored out") *> IO(Nil))
 
+        searchByClient(client1)
+          .parZip(searchByClient(client2))
+          .map(x => SearchResult(x._1 ++ x._2))
+      }
     }
 
   // 2. Several clients can return data for the same flight. For example, if we combine data
@@ -46,8 +55,35 @@ object SearchFlightService {
   // Note: We can assume `clients` to contain less than 100 elements.
   def fromClients(clients: List[SearchFlightClient]): SearchFlightService =
     new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+      def search(from: Airport, to: Airport, date: LocalDate)(implicit ec: ExecutionContext): IO[SearchResult] = {
+
+        def searchByClient(client: SearchFlightClient): IO[List[Flight]] =
+          client
+            .search(from, to, date)
+            .handleErrorWith(_ => IO.debug("client errored out") *> IO(Nil))
+
+        // def searchAllClients(clients: List[SearchFlightClient]): IO[SearchResult] =
+        //   clients match {
+        //     case Nil => IO(SearchResult(Nil))
+        //     case c::cs => for {
+        //       flights <- searchByClient(c)
+        //       res <- searchAllClients(cs)
+        //     } yield SearchResult(flights ++ res.flights)
+        //   }
+        //
+        // searchAllClients(clients)//.map(SearchResult(_))
+
+        // clients.foldLeft(IO(SearchResult(Nil))) { (res, client) =>
+        //   searchByClient(client).flatMap { flights =>
+        //     res.map(result => SearchResult(result.flights ++ flights))
+        //   }
+        // }
+
+        clients
+          .parTraverse(searchByClient)
+          .map(_.flatten)
+          .map(SearchResult(_))
+      }
     }
 
   // 5. Refactor `fromClients` using `sequence` or `traverse` from the `IO` companion object.

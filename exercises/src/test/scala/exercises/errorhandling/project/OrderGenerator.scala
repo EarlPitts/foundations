@@ -7,8 +7,8 @@ import java.time.{Duration, Instant}
 
 object OrderGenerator {
 
-  val orderIdGen: Gen[String] = Gen.alphaNumStr
-  val itemIdGen: Gen[String]  = Gen.alphaNumStr
+  val orderIdGen: Gen[OrderId] = Gen.alphaNumStr.map(OrderId(_))
+  val itemIdGen: Gen[String]   = Gen.alphaNumStr
 
   val instantGen: Gen[Instant] =
     for {
@@ -40,42 +40,42 @@ object OrderGenerator {
       postCode     <- Gen.alphaNumStr
     } yield Address(streetNumber, postCode)
 
-  val draftGen: Gen[Order] =
+  val draftGen: Gen[DraftOrder] =
     for {
       orderId   <- orderIdGen
       createdAt <- instantGen
       items     <- Gen.listOf(itemGen)
-    } yield Order(orderId, "Draft", items, None, createdAt, None, None)
+    } yield DraftOrder(orderId, items, createdAt)
 
-  val checkoutGen: Gen[Order] =
+  val checkoutGen: Gen[CheckoutOrder] =
     for {
       orderId   <- orderIdGen
       createdAt <- instantGen
-      items     <- Gen.listOf(itemGen)
+      items     <- nelOf(itemGen)
       address   <- Gen.option(addressGen)
-    } yield Order(orderId, "Checkout", items, address, createdAt, None, None)
+    } yield CheckoutOrder(orderId, items, address, createdAt)
 
-  val submittedGen: Gen[Order] =
+  val submittedGen: Gen[SubmittedOrder] =
     for {
       orderId   <- orderIdGen
       createdAt <- instantGen
-      items     <- Gen.listOf(itemGen)
+      items     <- nelOf(itemGen)
       address   <- addressGen
       delay     <- durationGen
       submittedAt = createdAt.plus(delay)
-    } yield Order(orderId, "Submitted", items, Some(address), createdAt, Some(submittedAt), None)
+    } yield SubmittedOrder(orderId, items, address, createdAt, submittedAt)
 
-  val deliveredGen: Gen[Order] =
+  val deliveredGen: Gen[DeliveredOrder] =
     for {
       orderId   <- orderIdGen
       createdAt <- instantGen
-      items     <- Gen.listOf(itemGen)
+      items     <- nelOf(itemGen)
       address   <- addressGen
       delay1    <- durationGen
       submittedAt = createdAt.plus(delay1)
       delay2 <- durationGen
       deliveredAt = submittedAt.plus(delay2)
-    } yield Order(orderId, "Delivered", items, Some(address), createdAt, Some(submittedAt), Some(deliveredAt))
+    } yield DeliveredOrder(orderId, items, address, createdAt, submittedAt, deliveredAt)
 
   val orderGen: Gen[Order] =
     Gen.oneOf(draftGen, checkoutGen, submittedGen, deliveredGen)

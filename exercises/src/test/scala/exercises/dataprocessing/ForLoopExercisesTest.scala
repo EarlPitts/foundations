@@ -17,19 +17,28 @@ class ForLoopExercisesTest extends AnyFunSuite with ScalaCheckDrivenPropertyChec
     }
   }
 
-  ignore("size") {
-    assert(size(List(2, 5, 1, 8)) == 4)
-    assert(size(Nil) == 0)
+  test("size") {
+    forAll { (ns: List[Int]) =>
+      assert(size(ns) == ns.length)
+    }
   }
 
-  ignore("min") {
-    assert(min(List(2, 5, 1, 8)) == Some(1))
-    assert(min(Nil) == None)
+  test("min") {
+    forAll { (ns: List[Int]) =>
+      assert(min(ns) == ns.minOption)
+    }
   }
 
-  ignore("wordCount") {
+  test("wordCount") {
     assert(wordCount(List("Hi", "Hello", "Hi")) == Map("Hi" -> 2, "Hello" -> 1))
     assert(wordCount(Nil) == Map.empty)
   }
+
+  // test("foldLeft cares about order") {
+  //   forAll { (l: List[Int]) =>
+  //     assert(catamorphism(l)(List.empty[Int])((a: Int) => (b: List[Int]) => a :: b)
+  //     == l.reverse)
+  //   }
+  // }
 
 }

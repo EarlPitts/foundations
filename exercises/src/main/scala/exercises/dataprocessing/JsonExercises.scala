@@ -6,10 +6,14 @@ object JsonExercises {
   case class JsonNumber(number: Double)         extends Json
   case class JsonString(text: String)           extends Json
   case class JsonObject(obj: Map[String, Json]) extends Json
+  case class JsonBoolean(bool: Boolean) extends Json
+  case object JsonNull extends Json
+  case class JsonArray(arr: List[Json]) extends Json
 
   def trimAll(json: Json): Json =
     json match {
-      case _: JsonNumber   => json
+      case _: JsonNumber | _: JsonBoolean |  _: JsonArray => json
+      case JsonNull => json
       case JsonString(str) => JsonString(str.trim)
       case JsonObject(obj) =>
         val newObj = obj.map {
@@ -34,8 +38,11 @@ object JsonExercises {
   //    "country": "UK",                            "country": "***",
   //  }                                           }
   //}                                           }
-  def anonymize(json: Json): Json =
-    ???
+  def anonymize(json: Json): Json = json match {
+    case JsonNumber(_) => JsonNumber(0)
+    case JsonString(text) => JsonString("***")
+    case JsonObject(obj) => JsonObject(obj.map{ case (key, value) => (key, anonymize(value))})
+  }
 
   // b. Implement `search`, a method that checks if a JSON document contains a text.
   // Note: `search` doesn't look inside of the keys of a `JsonObject`, only the values.
@@ -45,16 +52,22 @@ object JsonExercises {
   // * search("Hello", "ll") == true
   // * search({ "message" : "hello" }, "ll") == true
   // * search({ "message" : "hi" }, "ll") == false
-  def search(json: Json, text: String): Boolean =
-    ???
+  def search(json: Json, text: String): Boolean = json match {
+    case JsonNumber(_) => false
+    case JsonString(str) => str.contains(text)
+    case JsonObject(obj) => obj.values.foldLeft(false){ case (b, json) => (b || search(json, text)) }
+  }
 
   // c. Implement `depth`, a method that calculates the maximum level of nesting of a JSON document.
   // For example:
   // * { }, 5 or "hello" have depth 0
   // * { "name" : "john" } has depth 1
   // * { "name" : "john", "address" : { "postcode" : "E16 4SR" } } has depth 2
-  def depth(json: Json): Int =
-    ???
+  def depth(json: Json): Int = json match {
+    case JsonNumber(number) => 0
+    case JsonString(text) => 0
+    case JsonObject(obj) => 1 + obj.values.foldLeft(-1){ case (cur, json) => cur.max(depth(json)) }
+  }
 
   //////////////////////////////////////////////
   // Bonus question (not covered by the video)
@@ -66,4 +79,11 @@ object JsonExercises {
   // such as search({ "user" : { "name" : "John" } }, "o", 2) == true
   // but     search({ "user" : { "name" : "John" } }, "o", 1) == false because "John" is at depth 2
 
+  def search(json: Json, text: String, depth: Int): Boolean =
+    if (depth == 1) false
+    else json match {
+    case JsonNumber(_) => false
+    case JsonString(str) => str.contains(text)
+    case JsonObject(obj) => obj.values.foldLeft(false){ case (b, json) => (b || search(json, text)) }
+  }
 }

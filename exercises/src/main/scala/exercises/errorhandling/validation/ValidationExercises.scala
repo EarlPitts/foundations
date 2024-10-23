@@ -21,10 +21,10 @@ object ValidationExercises {
 
   sealed trait FormError
   object FormError {
-    case class InvalidFormat(input: String)        extends FormError
-    case class NotSupported(input: String)         extends FormError
-    case class TooSmall(inputLength: Int)          extends FormError
-    case class InvalidCharacters(char: List[Char]) extends FormError
+    case class InvalidFormat(input: String)       extends FormError
+    case class NotSupported(input: String)        extends FormError
+    case class TooSmall(inputLength: Int)         extends FormError
+    case class InvalidCharacters(char: NEL[Char]) extends FormError
   }
 
   // 1. Copy-paste `validateCountry` from `EitherExercises2` and adapt it to `Validation`.
@@ -35,15 +35,23 @@ object ValidationExercises {
   // Note: You can find several helpers methods in the companion object of Validation,
   //       as well as many extension methods in `package.scala`.
   def validateCountry(countryCode: String): Validation[FormError, Country] =
-    ???
+    if (countryCode.length != 3 || !countryCode.forall(_.isUpper))
+      Invalid(NEL(InvalidFormat(countryCode)))
+    else
+      Country.all
+        .find(_.code == countryCode)
+        .toValid(NotSupported(countryCode))
 
   // 2. Copy-paste `checkUsernameSize` from `EitherExercises2` and adapt it to `Validation`.
   def checkUsernameSize(username: String): Validation[TooSmall, Unit] =
-    ???
+    Validation.cond(username.length >= 5, failure = TooSmall(username.length), success = ())
 
   // 3. Copy-paste `checkUsernameCharacters` from `EitherExercises2` and adapt it to `Validation`.
   def checkUsernameCharacters(username: String): Validation[InvalidCharacters, Unit] =
-    ???
+    NEL.fromList(username.filterNot(isValidUsernameCharacter).toList) match {
+      case None        => ().valid
+      case Some(value) => InvalidCharacters(value).invalid
+    }
 
   def isValidUsernameCharacter(c: Char): Boolean =
     c.isLetter || c.isDigit || c == '_' || c == '-'
@@ -55,11 +63,20 @@ object ValidationExercises {
   // validateUsername("!") == Invalid(NEL(TooSmall(1), InvalidCharacters(List('!'))))
   // Note: Check the methods `zip` and `zipWith` of `Validation`.
   def validateUsername(username: String): Validation[FormError, Username] =
-    ???
+    (
+      checkUsernameSize(username),
+      checkUsernameCharacters(username)
+    ).zipWith((_, _) => Username(username))
 
   // 5. Implement `validateUser` so that it reports all errors.
-  def validateUser(usernameStr: String, countryStr: String): Validation[FormError, User] =
-    ???
+  def validateUser(usernameStr: String, countryStr: String): Validation[FieldError, User] =
+    (
+      field(validateUsername(usernameStr)),
+      field(validateCountry(countryStr))
+    ).zipWith(User)
+
+  def field[A](res: Validation[FormError, A]): Validation[FieldError, A] =
+    res.mapErrorAll((es: NEL[FormError]) => NEL(FieldError(FieldIds.username, es)))
 
   // 6. When validateUser` produces a `TooSmall(2)`, how do we know that it is about the username?
   // Update `validateUser` so that it groups all the errors by field (see `FieldError` below).

@@ -9,7 +9,7 @@ package object fp {
     def traverse[B](action: A => IO[B]): IO[List[B]] =
       IO.traverse(values)(action)
 
-    def parTraverse[B](action: A => IO[B])(ec: ExecutionContext): IO[List[B]] =
+    def parTraverse[B](action: A => IO[B])(implicit ec: ExecutionContext): IO[List[B]] =
       IO.parTraverse(values)(action)(ec)
   }
 

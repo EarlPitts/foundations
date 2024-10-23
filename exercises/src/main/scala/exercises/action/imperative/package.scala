@@ -25,8 +25,15 @@ package object imperative {
   // Note: `action: => A` is a by-name parameter (see the Evaluation lesson).
   // Note: `maxAttempt` must be greater than 0, if not you should throw an exception.
   // Note: Tests are in the `exercises.action.imperative.ImperativeActionTest`
-  def retry[A](maxAttempt: Int)(action: => A): A =
-    ???
+  def retry[A](maxAttempt: Int)(action: => A): A = {
+    require(maxAttempt > 0, "maxAttemp cannot be negative")
+    Try(action) match {
+      case Success(res) => res
+      case Failure(exception) =>
+        if (maxAttempt == 1) throw exception
+        else retry(maxAttempt - 1)(action)
+    }
+  }
 
   // 2. Refactor `readSubscribeToMailingListRetry` in `UserCreationExercises` using `retry`.
 
@@ -40,7 +47,10 @@ package object imperative {
   // Prints "An error occurred: Boom" and then rethrow the "Boom" exception.
   // Note: You need to write tests for `onError` yourself in `exercises.action.imperative.ImperativeActionTest`
   def onError[A](action: => A, cleanup: Throwable => Any): A =
-    ???
+    Try(action) match {
+      case Failure(e) => cleanup(e); throw e
+      case Success(value) => value
+    }
 
   // 4. Refactor `readSubscribeToMailingListRetry` using `onError` in `UserCreationExercises`.
 
@@ -50,7 +60,7 @@ package object imperative {
   // Bonus questions (not covered by the video)
   //////////////////////////////////////////////
 
-  // 6. Write a property based for `retry`. For example,
+  // 6. Write a property based test for `retry`. For example,
   // Step 1. Generate a function that throws an exception for the first `n` evaluations.
   // Step 2. Generate a random value for `maxAttempt`.
   // Step 3. Check `retry` is a success if `maxAttempt > number of errors` and a failure otherwise.

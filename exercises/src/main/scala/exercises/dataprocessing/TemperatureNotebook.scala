@@ -4,6 +4,7 @@ import exercises.dataprocessing.ThreadPoolUtil.fixedSizeExecutionContext
 import exercises.dataprocessing.TimeUtil.{bench, Labelled}
 import kantan.csv._
 import kantan.csv.ops._
+import scala.concurrent.ExecutionContext
 
 // Run the notebook using green arrow (if available in your IDE)
 // or run `sbt` in your terminal to open sbt in shell mode then type:
@@ -17,8 +18,8 @@ object TemperatureNotebook extends App {
   // We use kantan.csv library to parse the each csv raw into a case class `Sample`
   // such as 1 column in the csv maps to one field in the case class.
   // See https://nrinaudo.github.io/kantan.csv/rows_as_case_classes.html
-  val reader: CsvReader[Either[ReadError, Sample]] = getClass
-    .getResource("/city_temperature.csv")
+  val reader: CsvReader[ReadResult[Sample]] = getClass
+    .getResource("/city_temperature.csv.bck")
     .asCsvReader[Sample](rfc.withHeader)
 
   val rows: List[Either[ReadError, Sample]] = reader.toList
@@ -31,19 +32,34 @@ object TemperatureNotebook extends App {
 
   println(s"Parsed ${samples.size} rows successfully and ${failures.size} rows failed ")
 
+  implicit val ec: ExecutionContext = fixedSizeExecutionContext(8)
+
   // a. Implement `samples`, a `ParList` containing all the `Samples` in `successes`.
   // Partition `parSamples` so that it contains 10 partitions of roughly equal size.
   // Note: Check `ParList` companion object
+  val partitionSize = math.ceil(samples.size.toDouble / 10).toInt
   lazy val parSamples: ParList[Sample] =
-    ???
+    ParList.byPartitionSize(partitionSize, samples)
+
+  parSamples.partitions.zipWithIndex.foreach { case (partition, index) =>
+    println(s"partition $index has size ${partition.size}")
+  }
+
+  println(TemperatureExercises.aggregateBy(parSamples)(_.city))
 
   // b. Implement `minSampleByTemperature` in TemperatureExercises
-  lazy val coldestSample: Option[Sample] =
-    TemperatureExercises.minSampleByTemperature(parSamples)
+  // lazy val coldestSample: Option[Sample] =
+  //   TemperatureExercises.minSampleByTemperature(parSamples)
+  //
+  // println(coldestSample)
 
   // c. Implement `averageTemperature` in TemperatureExercises
-  lazy val averageTemperature: Option[Double] =
-    TemperatureExercises.averageTemperature(parSamples)
+  // lazy val averageTemperature: Option[Double] =
+  //   TemperatureExercises.averageTemperature(parSamples)
+  //
+  // println(averageTemperature)
+
+  // parSamples.parFoldMap(_.temperatureFahrenheit)
 
   //////////////////////
   // Benchmark ParList
@@ -57,8 +73,8 @@ object TemperatureNotebook extends App {
   bench("sum", iterations = 200, warmUpIterations = 40, ignore = true)(
     Labelled("List foldLeft", () => samples.foldLeft(0.0)((state, sample) => state + sample.temperatureFahrenheit)),
     Labelled("List map + sum", () => samples.map(_.temperatureFahrenheit).sum),
-//    Labelled("ParList foldMap", () => ???),
-//    Labelled("ParList parFoldMap", () => ???),
+    Labelled("ParList foldMap", () => parSamples.foldMap(_.temperatureFahrenheit)),
+    Labelled("ParList parFoldMap", () => parSamples.parFoldMap(_.temperatureFahrenheit))
   )
 
   // Compare the runtime performance of various implementations of `summary`

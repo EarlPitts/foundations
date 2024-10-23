@@ -31,40 +31,56 @@ class UserCreationService(console: Console, clock: Clock) {
   // Then, we'll refactor `readName` with `andThen`.
   // Note: You can find tests in `exercises.action.fp.console.UserCreationServiceTest`
   val readName: IO[String] =
-    IO {
-      console.writeLine("What's your name?").unsafeRun()
-      console.readLine.unsafeRun()
-    }
+    console
+      .writeLine("What's your name?")
+      .andThen(console.readLine)
 
   // 2. Refactor `readDateOfBirth` so that the code combines the three internal `IO`
   // instead of executing each `IO` one after another using `unsafeRun`.
   // For example, try to use `andThen`.
   // If it doesn't work investigate the methods `map` and `flatMap` on the `IO` trait.
-  val readDateOfBirth: IO[LocalDate] =
-    IO {
-      console.writeLine("What's your date of birth? [dd-mm-yyyy]").unsafeRun()
-      val line = console.readLine.unsafeRun()
-      parseDateOfBirth(line).unsafeRun()
-    }
+  val readDateOfBirth: IO[LocalDate] = {
+    val printError = console.writeLine("""Incorrect format, for example enter "18-03-2001" for 18th of March 2001""")
+    for {
+      _    <- console.writeLine("What's your date of birth? [dd-mm-yyyy]")
+      line <- console.readLine
+      answer <- parseDateOfBirth(line)
+        .onError(_ => printError)
+    } yield answer
+  }
 
   // 3. Refactor `readSubscribeToMailingList` and `readUser` using the same techniques as `readDateOfBirth`.
-  val readSubscribeToMailingList: IO[Boolean] =
-    IO {
-      console.writeLine("Would you like to subscribe to our mailing list? [Y/N]").unsafeRun()
-      val line = console.readLine.unsafeRun()
-      parseLineToBoolean(line).unsafeRun()
-    }
+  val readSubscribeToMailingList: IO[Boolean] = {
+    val printError = console.writeLine("""Incorrect format, enter "Y" for Yes or "N" for "No"""")
+    for {
+      _    <- console.writeLine("Would you like to subscribe to our mailing list? [Y/N]")
+      line <- console.readLine
+      answer <- parseLineToBoolean(line)
+        .onError(_ => printError)
+    } yield answer
+  }
 
-  val readUser: IO[User] =
-    IO {
-      val name        = readName.unsafeRun()
-      val dateOfBirth = readDateOfBirth.unsafeRun()
-      val subscribed  = readSubscribeToMailingList.unsafeRun()
-      val now         = clock.now.unsafeRun()
-      val user        = User(name, dateOfBirth, subscribed, now)
-      console.writeLine(s"User is $user").unsafeRun()
-      user
-    }
+  val readUser: IO[User] = for {
+    name        <- readName
+    dateOfBirth <- readDateOfBirth.retry(3)
+    subscribed  <- readSubscribeToMailingList.retry(3)
+    now         <- clock.now
+    user = User(name, dateOfBirth, subscribed, now)
+    _ <- console.writeLine(s"User is $user")
+  } yield user
+  //
+  // readName.flatMap(name =>
+  //   readDateOfBirth.flatMap(dateOfBirth =>
+  //     readSubscribeToMailingList.flatMap(subscribed =>
+  //       clock.now.flatMap { now =>
+  //         val user = User(name, dateOfBirth, subscribed, now)
+  //         console
+  //           .writeLine(s"User is $user")
+  //           .map(_ => user)
+  //       }
+  //     )
+  //   )
+  // )
 
   //////////////////////////////////////////////
   // PART 2: For Comprehension
